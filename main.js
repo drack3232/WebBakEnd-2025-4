@@ -88,13 +88,20 @@ async function startServer() {
       });
       res.end(responseBuffer);
     } catch (error) {
-      console.error(`Помилка під час обробки запиту: ${error.message}`);
-      res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
-      res.end(
-        `Внутрішня помилка сервера: ${error.message}\n(Перевірте, чи існує файл '${options.input}' та чи є він коректним JSON.)`
-      );
+      // Перевіряємо, чи це помилка "файл не знайдено"
+      if (error.code === 'ENOENT') {
+        console.error("Cannot find input file"); // Вимога з завдання
+        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end(`404 Not Found: Cannot find input file '${options.input}'`);
+        
+      } else {
+        // Для всіх інших помилок (наприклад, невірний JSON)
+        console.error(`Помилка під час обробки запиту: ${error.message}`);
+        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end(`Внутрішня помилка сервера: ${error.message}`);
+      }
     }
-  };
+  }
 
   const server = http.createServer(requestListener);
 
