@@ -1,42 +1,107 @@
 import { Command } from "commander";
-import fs from "fs"
-import http from "http"
+import * as fs from "fs/promises";
+import http from "http";
+import { URL } from "url";
+import * as fxp from "fast-xml-parser";
+
 const program = new Command();
 
 program
   .name("WebBack-4")
-  .description("")
+  .description("Вебсервер для фільтрації та виводу даних mtcars у XML")
   .version("1.0.0");
 
 program
-  .option("-i, --input [file]", "Input file path")
- .option("-h, --host[string]", "Server host")
- .option("-p, --port[number]", "port for server")
+  .option("-i, --input <file>", "Input file path (e.g., mtcars.json)")
+  .option("-h, --host <string>", "Server host", "127.0.0.1")
+  .option("-p, --port <number>", "Port for server", "8080");
 
-  program.parse(process.argv)
-  const option = program.opts();
+async function startServer() {
+  program.parse(process.argv);
+  const options = program.opts();
 
-  if(option.input === true || !option.input){
-    console.error("Please, specify input file");
-  process.exit(1);
+  if (!options.input) {
+    console.error(
+      "Помилка: Будь ласка, вкажіть шлях до вхідного файлу за допомогою -i або --input."
+    );
+    process.exit(1);
   }
 
-  if(!fs.existsSync(options.input)){
-    console.error("Cannot find input file")
-    process.exit(1)
+  const host = options.host;
+  const port = parseInt(options.port);
+
+  const builder = new fxp.XMLBuilder({
+    ignoreAttributes: false,
+    format: false,
+  });
+
+  const requestListener = async function (req, res) {
+    try {
+      const fullUrl = new URL(req.url, `http://${host}:${port}`);
+      const queryParams = fullUrl.searchParams;
+
+      const showCylinders = queryParams.get("cylinders") === "true";
+      const maxMpg = queryParams.get("max_mpg");
+
+      const rawData = await fs.readFile(options.input, { encoding: "utf8" });
+      const jsonObject = JSON.parse(rawData);
+
+      let filteredCars = [];
+
+      for (const modelName in jsonObject) {
+        if (jsonObject.hasOwnProperty(modelName)) {
+          const car = jsonObject[modelName];
+
+          if (maxMpg !== null) {
+            const maxMpgValue = parseFloat(maxMpg);
+            if (car.mpg >= maxMpgValue) {
+              continue;
+            }
+          }
+
+          let carOutput = {
+            model: modelName,
+            cyl: car.cyl,
+            mpg: car.mpg,
+          };
+
+          if (showCylinders) {
+            carOutput.cyl = car.cyl;
+          }
+
+          filteredCars.push(carOutput);
+        }
+      }
+
+      const xmlStructure = {
+        cars: {
+          car: filteredCars,
+        },
+      };
+
+      const xmlOutput = builder.build(xmlStructure);
+      const responseBuffer = Buffer.from(xmlOutput, "utf8");
+
+      res.writeHead(200, {
+        "Content-Type": "application/xml; charset=utf-8",
+        "Content-Length": responseBuffer.length,
+      });
+      res.end(responseBuffer);
+    } catch (error) {
+      console.error(`Помилка під час обробки запиту: ${error.message}`);
+      res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end(
+        `Внутрішня помилка сервера: ${error.message}\n(Перевірте, чи існує файл '${options.input}' та чи є він коректним JSON.)`
+      );
+    }
+  };
+
+  const server = http.createServer(requestListener);
+
+  server.listen(port, host, () => {
+    console.log(`Сервер запущено: http://${host}:${port}`);
+    console.log(`Використовується вхідний файл: ${options.input}`);
+  });
 }
 
-const host = option.host || '127.0.0.1';
-const port = option.port ? parseInt(options.port) : 8080;
-
-const requestListner = function (req, res){
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Web server is running and input file is ' + options.input);
-}
-
-const server =  http.createServer(requestListener);
-
-server.listen(port, host, () => {
-    console.log(`Server is running on http://${host}:${port}`);
-  console.log(`Using input file: ${options.input}`);
-})
+startServer();
