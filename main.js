@@ -9,7 +9,7 @@ const program = new Command();
 program
   .name("WebBack-4")
   .description("Вебсервер для фільтрації та виводу даних mtcars у XML")
-  .version("1.0.0");
+  .version("1.0.3");
 
 program
   .option("-i, --input <file>", "Input file path (e.g., mtcars.json)")
@@ -88,9 +88,8 @@ async function startServer() {
       });
       res.end(responseBuffer);
     } catch (error) {
-      // Перевіряємо, чи це помилка "файл не знайдено"
       if (error.code === 'ENOENT') {
-        console.error("Cannot find input file"); // Вимога з завдання
+        console.error("Cannot find input file"); 
         res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
         res.end(`404 Not Found: Cannot find input file '${options.input}'`);
         
