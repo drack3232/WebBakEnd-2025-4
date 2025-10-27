@@ -61,7 +61,8 @@ async function startServer() {
 
           let carOutput = {
             model: modelName,
-            cyl: car.cyl,
+           // cyl: car.cyl, тут була помилка 
+           //У даній ситуації з тим showCylinder завжди був false незалежно що водилось в параметрах 
             mpg: car.mpg,
           };
 
